@@ -43,7 +43,7 @@ const createOGImage = async () => {
       
       <!-- Logo and brand -->
       <rect x="460" y="150" width="80" height="80" rx="16" fill="url(#logoGrad)"/>
-      <text x="500" y="215" font-size="48" font-weight="bold" text-anchor="middle" fill="white" font-family="Arial">K</text>
+      <text x="500" y="205" font-size="48" font-weight="bold" text-anchor="middle" fill="white" font-family="Arial">K</text>
       <text x="560" y="215" font-size="64" font-weight="bold" fill="#111827" font-family="Arial">kensa</text>
       
       <!-- Tagline -->
