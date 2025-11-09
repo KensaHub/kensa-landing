@@ -15,33 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Kensa - Your Research, Elevated",
   description: "AI-powered platform that helps researchers organize papers, discover grants, and accelerate breakthroughs. Launching January 2025.",
-  keywords: ["research", "AI", "academic", "papers", "grants", "literature review"],
-  authors: [{ name: "Kensa" }],
-  icons: {
-    icon: [{ url: '/icon.png' }],
-  },
-  openGraph: {
-    title: "Kensa - Your Research, Elevated",
-    description: "AI-powered platform that helps researchers organize papers, discover grants, and accelerate breakthroughs.",
-    url: "https://kensa.to",
-    siteName: "Kensa",
-    images: [
-      {
-        url: '/opengraph-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Kensa - Your Research, Elevated',
-      },
-    ],
-    locale: "en_US",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Kensa - Your Research, Elevated",
-    description: "AI-powered platform that helps researchers organize papers, discover grants, and accelerate breakthroughs.",
-    images: ['/opengraph-image.png'],
-  },
+  metadataBase: new URL('https://kensa.to'),
 };
 
 export default function RootLayout({
