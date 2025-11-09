@@ -18,9 +18,7 @@ export const metadata: Metadata = {
   keywords: ["research", "AI", "academic", "papers", "grants", "literature review"],
   authors: [{ name: "Kensa" }],
   icons: {
-    icon: '/icon.png',
-    shortcut: '/favicon.ico',
-    apple: '/icon.png',
+    icon: [{ url: '/icon.png' }],
   },
   openGraph: {
     title: "Kensa - Your Research, Elevated",
