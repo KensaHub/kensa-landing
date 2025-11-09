@@ -16,15 +16,6 @@ export const metadata: Metadata = {
   title: "Kensa - Your Research, Elevated",
   description: "AI-powered platform that helps researchers organize papers, discover grants, and accelerate breakthroughs. Launching January 2025.",
   metadataBase: new URL('https://kensa.to'),
-  icons: {
-    icon: '/icon.png',
-    apple: '/icon.png',
-  },
-  openGraph: {
-    title: "Kensa - Your Research, Elevated",
-    description: "AI-powered platform that helps researchers organize papers, discover grants, and accelerate breakthroughs.",
-    images: ['/opengraph-image.png'],
-  },
 };
 
 export default function RootLayout({
@@ -34,10 +25,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/icon.png" type="image/png" sizes="512x512" />
-        <link rel="apple-touch-icon" href="/icon.png" />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

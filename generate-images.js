@@ -1,5 +1,6 @@
 const sharp = require('sharp');
 const fs = require('fs');
+const toIco = require('to-ico');
 
 // Create favicon (512x512)
 const createFavicon = async () => {
@@ -61,26 +62,36 @@ const createOGImage = async () => {
   console.log('✓ Created opengraph-image.png');
 };
 
-// Create a simple favicon.ico as well
-const createFaviconIco = async () => {
+// Create proper multi-size favicon.ico
+const createProperFavicon = async () => {
+  const sizes = [16, 32, 48];
+  const buffers = [];
+  
   const svg = `
-    <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+    <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" style="stop-color:#14b8a6;stop-opacity:1" />
           <stop offset="100%" style="stop-color:#0d9488;stop-opacity:1" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="6" fill="url(#grad)"/>
-      <text x="16" y="24" font-size="20" font-weight="bold" text-anchor="middle" fill="white" font-family="Arial">K</text>
+      <rect width="256" height="256" rx="40" fill="url(#grad)"/>
+      <text x="128" y="190" font-size="160" font-weight="bold" text-anchor="middle" fill="white" font-family="Arial">K</text>
     </svg>
   `;
   
-  await sharp(Buffer.from(svg))
-    .png()
-    .toFile('public/favicon.ico');
+  for (const size of sizes) {
+    const buffer = await sharp(Buffer.from(svg))
+      .resize(size, size)
+      .png()
+      .toBuffer();
+    buffers.push(buffer);
+  }
   
-  console.log('✓ Created favicon.ico');
+  const icoBuffer = await toIco(buffers);
+  fs.writeFileSync('public/favicon.ico', icoBuffer);
+  
+  console.log('✓ Created proper favicon.ico');
 };
 
 // Run all
@@ -92,8 +103,7 @@ const createFaviconIco = async () => {
   
   await createFavicon();
   await createOGImage();
-  await createFaviconIco();
+  await createProperFavicon();
   
   console.log('\n🎉 All images created successfully!');
-  console.log('Now run: git add . && git commit -m "Add branded images" && git push');
 })();
