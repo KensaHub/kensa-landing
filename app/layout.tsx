@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kensa - Your Research, Elevated",
+  title: "Kensa: Your Personal Research Assistant",
   description: "AI-powered platform that helps researchers organize papers, discover grants, and accelerate breakthroughs. Launching January 2025.",
   metadataBase: new URL('https://kensa.to'),
 };
