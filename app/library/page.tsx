@@ -1,14 +1,74 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { UserButton, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+
+interface Paper {
+  id: string
+  title: string
+  authors: string | null
+  year: number | null
+  file_name: string
+  upload_date: string
+}
 
 export default function LibraryPage() {
   const { user } = useUser()
   const router = useRouter()
   const [uploading, setUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [papers, setPapers] = useState<Paper[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch papers when component loads
+  useEffect(() => {
+    if (user) {
+      fetchPapers()
+    }
+  }, [user])
+
+  const handleDelete = async (paperId: string) => {
+    if (!confirm('Are you sure you want to delete this paper?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('papers')
+        .delete()
+        .eq('id', paperId)
+
+      if (error) {
+        console.error('Error deleting paper:', error)
+        alert('Failed to delete paper')
+      } else {
+        alert('Paper deleted successfully!')
+        fetchPapers() // Refresh the list
+      }
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Failed to delete paper')
+    }
+  }
+
+  const fetchPapers = async () => {
+    if (!user) return
+
+    const { data, error } = await supabase
+      .from('papers')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('upload_date', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching papers:', error)
+    } else {
+      setPapers(data || [])
+    }
+    setLoading(false)
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -37,9 +97,11 @@ export default function LibraryPage() {
       if (response.ok) {
         alert('Paper uploaded successfully!')
         setSelectedFile(null)
-        // Reset file input
         const fileInput = document.getElementById('file-input') as HTMLInputElement
         if (fileInput) fileInput.value = ''
+        
+        // Refresh the papers list
+        fetchPapers()
       } else {
         alert('Upload failed. Please try again.')
       }
@@ -116,10 +178,45 @@ export default function LibraryPage() {
           </div>
         </div>
 
-        {/* Papers List - Coming Soon */}
+        {/* Papers List */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Your Papers</h2>
-          <p className="text-gray-600">Your uploaded papers will appear here.</p>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            Your Papers ({papers.length})
+          </h2>
+          
+          {loading ? (
+            <p className="text-gray-600">Loading papers...</p>
+          ) : papers.length === 0 ? (
+            <p className="text-gray-600">No papers yet. Upload your first paper above!</p>
+          ) : (
+            <div className="space-y-4">
+              {papers.map((paper) => (
+                <div
+                  key={paper.id}
+                  className="border border-gray-200 rounded-lg p-4 hover:border-teal-500 hover:shadow-sm transition flex justify-between items-start"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 mb-1">{paper.title}</h3>
+                    {paper.authors && (
+                      <p className="text-sm text-gray-600 mb-1">{paper.authors}</p>
+                    )}
+                    {paper.year && (
+                      <p className="text-sm text-gray-500">Year: {paper.year}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">
+                      Uploaded: {new Date(paper.upload_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(paper.id)}
+                    className="text-red-600 hover:text-red-800 text-sm font-medium ml-4"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>
