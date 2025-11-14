@@ -5,6 +5,13 @@ import { UserButton, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+interface Folder {
+  id: string
+  name: string
+  parent_folder_id: string | null
+  watch_enabled: boolean
+}
+
 interface Paper {
   id: string
   title: string
@@ -21,13 +28,20 @@ export default function LibraryPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [papers, setPapers] = useState<Paper[]>([])
   const [loading, setLoading] = useState(true)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
 
-  // Fetch papers when component loads
-  useEffect(() => {
-    if (user) {
-      fetchPapers()
-    }
-  }, [user])
+useEffect(() => {
+  if (user) {
+    fetchFolders()
+  }
+}, [user])
+
+useEffect(() => {
+  if (user && selectedFolder) {
+    fetchPapers()
+  }
+}, [user, selectedFolder])
 
   const handleDelete = async (paperId: string) => {
     if (!confirm('Are you sure you want to delete this paper?')) {
@@ -45,7 +59,7 @@ export default function LibraryPage() {
         alert('Failed to delete paper')
       } else {
         alert('Paper deleted successfully!')
-        fetchPapers() // Refresh the list
+        fetchPapers()
       }
     } catch (error) {
       console.error('Delete error:', error)
@@ -53,9 +67,88 @@ export default function LibraryPage() {
     }
   }
 
-  const fetchPapers = async () => {
-    if (!user) return
+const fetchFolders = async () => {
+  if (!user) return
 
+  const { data, error } = await supabase
+    .from('folders')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching folders:', error)
+    return
+  }
+
+  // If no folders exist, create "My Papers" folder
+  if (!data || data.length === 0) {
+    const { data: newFolder, error: createError } = await supabase
+      .from('folders')
+      .insert([
+        {
+          user_id: user.id,
+          name: 'My Papers',
+          parent_folder_id: null,
+          watch_enabled: false,
+        },
+      ])
+      .select()
+      .single()
+
+    if (createError) {
+      console.error('Error creating My Papers folder:', createError)
+    } else if (newFolder) {
+      setFolders([newFolder])
+      setSelectedFolder(newFolder.id)
+    }
+  } else {
+    setFolders(data)
+    // Auto-select "My Papers" folder if it exists
+    const myPapers = data.find((f) => f.name === 'My Papers')
+    if (myPapers && !selectedFolder) {
+      setSelectedFolder(myPapers.id)
+    }
+  }
+}
+
+const fetchPapers = async () => {
+  if (!user) return
+
+  // If a folder is selected, get papers in that folder
+  if (selectedFolder) {
+    const { data: paperFolders, error: pfError } = await supabase
+      .from('paper_folders')
+      .select('paper_id')
+      .eq('folder_id', selectedFolder)
+
+    if (pfError) {
+      console.error('Error fetching paper folders:', pfError)
+      setLoading(false)
+      return
+    }
+
+    const paperIds = paperFolders?.map((pf) => pf.paper_id) || []
+
+    if (paperIds.length === 0) {
+      setPapers([])
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('papers')
+      .select('*')
+      .in('id', paperIds)
+      .order('upload_date', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching papers:', error)
+    } else {
+      setPapers(data || [])
+    }
+  } else {
+    // No folder selected, show all papers
     const { data, error } = await supabase
       .from('papers')
       .select('*')
@@ -67,8 +160,10 @@ export default function LibraryPage() {
     } else {
       setPapers(data || [])
     }
-    setLoading(false)
   }
+
+  setLoading(false)
+}
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -100,7 +195,6 @@ export default function LibraryPage() {
         const fileInput = document.getElementById('file-input') as HTMLInputElement
         if (fileInput) fileInput.value = ''
         
-        // Refresh the papers list
         fetchPapers()
       } else {
         alert('Upload failed. Please try again.')
@@ -135,90 +229,122 @@ export default function LibraryPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Main Content with Sidebar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Research Library</h1>
           <p className="text-lg text-gray-600">Upload and organize your research papers</p>
         </div>
 
-        {/* Upload Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Upload a Paper</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="file-input" className="block text-sm font-medium text-gray-700 mb-2">
-                Select PDF File
-              </label>
-              <input
-                id="file-input"
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
-              />
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left Sidebar - Folders */}
+          <div className="col-span-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <h3 className="font-semibold text-gray-900 mb-4">Folders</h3>
+              
+              <div className="space-y-1">
+                {folders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => setSelectedFolder(folder.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition ${
+                      selectedFolder === folder.id
+                        ? 'bg-teal-50 text-teal-700 font-medium'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    📁 {folder.name}
+                  </button>
+                ))}
+              </div>
+
+              {folders.length === 0 && (
+                <p className="text-sm text-gray-500">No folders yet</p>
+              )}
+            </div>
+          </div>
+
+          {/* Right Content - Upload & Papers */}
+          <div className="col-span-9 space-y-6">
+            {/* Upload Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-6">Upload a Paper</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="file-input" className="block text-sm font-medium text-gray-700 mb-2">
+                    Select PDF File
+                  </label>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileSelect}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
+                  />
+                </div>
+
+                {selectedFile && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600">Selected file:</p>
+                    <p className="font-medium text-gray-900">{selectedFile.name}</p>
+                    <p className="text-sm text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleUpload}
+                  disabled={!selectedFile || uploading}
+                  className="w-full bg-teal-600 text-white font-semibold py-3 rounded-lg hover:bg-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? 'Uploading...' : 'Upload Paper'}
+                </button>
+              </div>
             </div>
 
-            {selectedFile && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600">Selected file:</p>
-                <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                <p className="text-sm text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-              </div>
-            )}
-
-            <button
-              onClick={handleUpload}
-              disabled={!selectedFile || uploading}
-              className="w-full bg-teal-600 text-white font-semibold py-3 rounded-lg hover:bg-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {uploading ? 'Uploading...' : 'Upload Paper'}
-            </button>
+            {/* Papers List */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+                Your Papers ({papers.length})
+              </h2>
+              
+              {loading ? (
+                <p className="text-gray-600">Loading papers...</p>
+              ) : papers.length === 0 ? (
+                <p className="text-gray-600">No papers yet. Upload your first paper above!</p>
+              ) : (
+                <div className="space-y-4">
+                  {papers.map((paper) => (
+                    <div
+                      key={paper.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-teal-500 hover:shadow-sm transition flex justify-between items-start"
+                    >
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-1">{paper.title}</h3>
+                        {paper.authors && (
+                          <p className="text-sm text-gray-600 mb-1">{paper.authors}</p>
+                        )}
+                        {paper.year && (
+                          <p className="text-sm text-gray-500">Year: {paper.year}</p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-2">
+                          Uploaded: {new Date(paper.upload_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(paper.id)}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium ml-4"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Papers List */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-            Your Papers ({papers.length})
-          </h2>
-          
-          {loading ? (
-            <p className="text-gray-600">Loading papers...</p>
-          ) : papers.length === 0 ? (
-            <p className="text-gray-600">No papers yet. Upload your first paper above!</p>
-          ) : (
-            <div className="space-y-4">
-              {papers.map((paper) => (
-                <div
-                  key={paper.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-teal-500 hover:shadow-sm transition flex justify-between items-start"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">{paper.title}</h3>
-                    {paper.authors && (
-                      <p className="text-sm text-gray-600 mb-1">{paper.authors}</p>
-                    )}
-                    {paper.year && (
-                      <p className="text-sm text-gray-500">Year: {paper.year}</p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-2">
-                      Uploaded: {new Date(paper.upload_date).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(paper.id)}
-                    className="text-red-600 hover:text-red-800 text-sm font-medium ml-4"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+      </div>
     </div>
   )
 }

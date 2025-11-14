@@ -18,23 +18,74 @@ export async function POST(request: NextRequest) {
     // Upload to R2
     const filePath = await uploadToR2(file, userId)
 
-    // Save metadata to Supabase
-    const { error } = await supabase.from('papers').insert([
-      {
-        user_id: userId,
-        title: file.name.replace('.pdf', ''),
-        file_name: file.name,
-        file_path: filePath,
-        file_size: file.size,
-      },
-    ])
+    // Save paper metadata to Supabase
+    const { data: paper, error: paperError } = await supabase
+      .from('papers')
+      .insert([
+        {
+          user_id: userId,
+          title: file.name.replace('.pdf', ''),
+          file_name: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          upload_date: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single()
 
-    if (error) {
-      console.error('Supabase error:', error)
+    if (paperError) {
+      console.error('Supabase error:', paperError)
       return NextResponse.json(
         { error: 'Failed to save paper metadata' },
         { status: 500 }
       )
+    }
+
+    // Find or create "My Papers" folder
+    let { data: folder } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('name', 'My Papers')
+      .single()
+
+    // If "My Papers" doesn't exist, create it
+    if (!folder) {
+      const { data: newFolder, error: folderError } = await supabase
+        .from('folders')
+        .insert([
+          {
+            user_id: userId,
+            name: 'My Papers',
+            parent_folder_id: null,
+            watch_enabled: false,
+          },
+        ])
+        .select()
+        .single()
+
+      if (folderError) {
+        console.error('Error creating folder:', folderError)
+      } else {
+        folder = newFolder
+      }
+    }
+
+    // Link paper to "My Papers" folder
+    if (folder && paper) {
+      const { error: linkError } = await supabase
+        .from('paper_folders')
+        .insert([
+          {
+            paper_id: paper.id,
+            folder_id: folder.id,
+          },
+        ])
+
+      if (linkError) {
+        console.error('Error linking paper to folder:', linkError)
+      }
     }
 
     return NextResponse.json({ success: true })

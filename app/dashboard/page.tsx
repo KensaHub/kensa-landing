@@ -16,7 +16,25 @@ export default function DashboardPage() {
         console.log('No user found')
         return
       }
+// Check if user has a "My Papers" folder
+const { data: existingFolder } = await supabase
+  .from('folders')
+  .select('id')
+  .eq('user_id', user.id)
+  .eq('name', 'My Papers')
+  .single()
 
+// If not, create it
+if (!existingFolder) {
+  await supabase.from('folders').insert([
+    {
+      user_id: user.id,
+      name: 'My Papers',
+      parent_folder_id: null,
+      watch_enabled: false,
+    },
+  ])
+}
       console.log('Checking profile for user:', user.id)
 
       // Check if user has completed onboarding
